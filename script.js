@@ -58,8 +58,54 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Firebase data listener
-    // Change 'sensors' to your Firebase data path
+        // TEMPORARY TEST DATA - Remove when connecting to real Firebase
+    console.log("Using test data - Firebase not configured yet");
+    
+    const testData = {
+        temperature_sensor: { 
+            value: 24.5, 
+            status: "normal",
+            unit: "°C"
+        },
+        humidity_sensor: { 
+            value: 65, 
+            status: "normal",
+            unit: "%"
+        },
+        pressure_sensor: { 
+            value: 1013, 
+            status: "normal",
+            unit: "hPa"
+        },
+        co2_sensor: { 
+            value: 420, 
+            status: "normal",
+            unit: "ppm"
+        },
+        water_level: { 
+            value: 85, 
+            status: "warning",
+            unit: "%"
+        }
+    };
+    
+    // Remove loading message
+    document.querySelector('.loading').style.display = 'none';
+    
+    // Update dashboard with test data
+    updateDashboard(testData);
+    
+    // Add some history to chart
+    for (let i = 0; i < 10; i++) {
+        updateChart(testData);
+    }
+    
+    // Update last updated time
+    document.getElementById('last-updated').textContent = 
+        new Date().toLocaleTimeString();
+    
+    /*
+    // REAL FIREBASE CODE - Uncomment when ready
     const sensorRef = database.ref('sensors');
     
     sensorRef.on('value', (snapshot) => {
@@ -67,16 +113,9 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log("Received data:", data);
         
         if (data) {
-            // Remove loading message
             document.querySelector('.loading').style.display = 'none';
-            
-            // Update dashboard
             updateDashboard(data);
-            
-            // Update chart
             updateChart(data);
-            
-            // Update last updated time
             document.getElementById('last-updated').textContent = 
                 new Date().toLocaleTimeString();
         }
@@ -85,7 +124,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('connection-status').textContent = "Disconnected";
         document.querySelector('.status-dot').style.background = '#e74c3c';
     });
-
+    */
     // Function to update dashboard cards
     function updateDashboard(data) {
         const dashboard = document.querySelector('.dashboard');
@@ -217,4 +256,5 @@ document.addEventListener('DOMContentLoaded', function() {
         
         sensorChart.update();
     }
+
 });
