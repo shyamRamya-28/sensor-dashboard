@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', function() {
         data: {
             labels: [],
             datasets: [{
-                label: 'Sensor Value',
+                label: 'Patient Health Data',
                 data: [],
                 borderColor: '#3498db',
                 backgroundColor: 'rgba(52, 152, 219, 0.1)',
@@ -58,80 +58,89 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-        // TEMPORARY TEST DATA - Remove when connecting to real Firebase
-    console.log("Using test data - Firebase not configured yet");
-    
-    const testData = {
-        temperature_sensor: { 
-            value: 24.5, 
-            status: "normal",
-            unit: "°C"
-        },
-        humidity_sensor: { 
-            value: 65, 
-            status: "normal",
-            unit: "%"
-        },
-        pressure_sensor: { 
-            value: 1013, 
-            status: "normal",
-            unit: "hPa"
-        },
-        co2_sensor: { 
-            value: 420, 
-            status: "normal",
-            unit: "ppm"
-        },
-        water_level: { 
-            value: 85, 
-            status: "warning",
-            unit: "%"
-        }
-    };
-    
-    // Remove loading message
-    document.querySelector('.loading').style.display = 'none';
-    
-    // Update dashboard with test data
-    updateDashboard(testData);
-    
-    // Add some history to chart
-    for (let i = 0; i < 10; i++) {
-        updateChart(testData);
-    }
-    
-    // Update last updated time
-    document.getElementById('last-updated').textContent = 
-        new Date().toLocaleTimeString();
-    
-    /*
-    // REAL FIREBASE CODE - Uncomment when ready
-    const sensorRef = database.ref('sensors');
-    
-    sensorRef.on('value', (snapshot) => {
-        const data = snapshot.val();
-        console.log("Received data:", data);
+    // ========== PATIENT DATA FUNCTIONS ==========
+    // Function to format patient data for dashboard
+    function formatPatientData(patientData) {
+        console.log("Raw patient data:", patientData);
         
-        if (data) {
-            document.querySelector('.loading').style.display = 'none';
-            updateDashboard(data);
-            updateChart(data);
-            document.getElementById('last-updated').textContent = 
-                new Date().toLocaleTimeString();
+        // If data is null or empty
+        if (!patientData) {
+            console.warn("No patient data found");
+            return {};
         }
-    }, (error) => {
-        console.error("Firebase error:", error);
-        document.getElementById('connection-status').textContent = "Disconnected";
-        document.querySelector('.status-dot').style.background = '#e74c3c';
-    });
-    */
+        
+        // Try different possible structures
+        const formatted = {};
+        
+        // Structure 1: Direct values (temperature: 37.5)
+        Object.keys(patientData).forEach(key => {
+            const value = patientData[key];
+            
+            if (typeof value === 'number') {
+                formatted[key] = {
+                    value: value,
+                    status: getStatus(key, value),
+                    unit: getUnit(key)
+                };
+            }
+            // Structure 2: Object values (temperature: {value: 37.5})
+            else if (value && typeof value === 'object' && value.value !== undefined) {
+                formatted[key] = {
+                    value: value.value,
+                    status: value.status || getStatus(key, value.value),
+                    unit: value.unit || getUnit(key)
+                };
+            }
+        });
+        
+        console.log("Formatted data:", formatted);
+        return formatted;
+    }
+
+    // Helper function to determine status
+    function getStatus(sensorName, value) {
+        const thresholds = {
+            temperature: { min: 36, max: 38, normal: 37 },
+            heart_rate: { min: 60, max: 100, normal: 72 },
+            spo2: { min: 95, max: 100, normal: 98 },
+            bp_systolic: { min: 90, max: 120, normal: 110 },
+            bp_diastolic: { min: 60, max: 80, normal: 70 },
+            respiratory_rate: { min: 12, max: 20, normal: 16 },
+            glucose: { min: 70, max: 140, normal: 100 }
+        };
+        
+        const threshold = thresholds[sensorName] || { min: 0, max: 100 };
+        
+        if (value < threshold.min || value > threshold.max) {
+            return "alert";
+        } else if (threshold.normal && Math.abs(value - threshold.normal) > (threshold.normal * 0.1)) {
+            return "warning";
+        }
+        return "normal";
+    }
+
+    // Helper function to get units
+    function getUnit(sensorName) {
+        const units = {
+            temperature: "°C",
+            heart_rate: "bpm",
+            spo2: "%",
+            bp_systolic: "mmHg",
+            bp_diastolic: "mmHg",
+            respiratory_rate: "bpm",
+            glucose: "mg/dL"
+        };
+        return units[sensorName] || "units";
+    }
+    // ========== END PATIENT DATA FUNCTIONS ==========
+
     // Function to update dashboard cards
     function updateDashboard(data) {
         const dashboard = document.querySelector('.dashboard');
         
-        // Clear existing cards except loading
+        // Clear loading message
         const loading = document.querySelector('.loading');
-        loading.style.display = 'none';
+        if (loading) loading.style.display = 'none';
         
         // Remove old cards
         const oldCards = document.querySelectorAll('.sensor-card');
@@ -161,11 +170,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 <span class="sensor-status">${getStatusBadge(sensorData)}</span>
             </div>
             <div class="sensor-value">
-                ${getSensorValue(sensorData)}
-                <span class="sensor-unit">${getUnit(sensorName)}</span>
+                ${sensorData.value}
+                <span class="sensor-unit">${sensorData.unit || getUnit(sensorName)}</span>
             </div>
             <div class="sensor-footer">
-                <span>Sensor ID: ${sensorName}</span>
+                <span>Patient: 001</span>
                 <span>Updated: Just now</span>
             </div>
         `;
@@ -177,12 +186,13 @@ document.addEventListener('DOMContentLoaded', function() {
     function getSensorIcon(sensorName) {
         const icons = {
             temperature: 'fas fa-thermometer-half',
-            humidity: 'fas fa-tint',
-            pressure: 'fas fa-tachometer-alt',
-            co2: 'fas fa-smog',
-            motion: 'fas fa-running',
-            light: 'fas fa-lightbulb',
-            default: 'fas fa-microchip'
+            heart_rate: 'fas fa-heartbeat',
+            spo2: 'fas fa-lungs',
+            bp_systolic: 'fas fa-tachometer-alt',
+            bp_diastolic: 'fas fa-tachometer-alt',
+            respiratory_rate: 'fas fa-wind',
+            glucose: 'fas fa-tint',
+            default: 'fas fa-stethoscope'
         };
         
         const name = sensorName.toLowerCase();
@@ -193,7 +203,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function formatSensorName(name) {
-        return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        return name.replace(/_/g, ' ')
+                   .replace(/\b\w/g, l => l.toUpperCase())
+                   .replace('Bp', 'BP')
+                   .replace('Spo2', 'SpO₂');
     }
 
     function getSensorValue(data) {
@@ -203,25 +216,8 @@ document.addEventListener('DOMContentLoaded', function() {
         return typeof data === 'object' ? JSON.stringify(data) : data;
     }
 
-    function getUnit(sensorName) {
-        const units = {
-            temperature: '°C',
-            humidity: '%',
-            pressure: 'hPa',
-            co2: 'ppm',
-            default: 'units'
-        };
-        
-        const name = sensorName.toLowerCase();
-        for (const [key, unit] of Object.entries(units)) {
-            if (name.includes(key)) return unit;
-        }
-        return units.default;
-    }
-
     function getStatusBadge(data) {
-        const value = typeof data === 'object' ? data.value : data;
-        const status = typeof data === 'object' ? data.status : 'normal';
+        const status = data.status || "normal";
         
         const badges = {
             normal: '<span style="color:#2ecc71;">Normal</span>',
@@ -242,7 +238,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Get first sensor value for chart
         const firstSensor = Object.values(data)[0];
-        const value = typeof firstSensor === 'object' ? firstSensor.value : firstSensor;
+        if (!firstSensor) return;
+        
+        const value = firstSensor.value;
         
         // Add new data point
         sensorChart.data.labels.push(timeLabel);
@@ -257,4 +255,84 @@ document.addEventListener('DOMContentLoaded', function() {
         sensorChart.update();
     }
 
+    // ========== FIREBASE LISTENER ==========
+    // CHANGE THIS PATH TO MATCH YOUR DATA
+    const patientRef = database.ref('patients/patient_001/2026-01-19');
+    
+    patientRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        console.log("Received patient data:", data);
+        
+        if (data) {
+            // Remove loading message
+            document.querySelector('.loading').style.display = 'none';
+            
+            // Format the data for our dashboard
+            const formattedData = formatPatientData(data);
+            
+            // Update dashboard
+            updateDashboard(formattedData);
+            
+            // Update chart
+            updateChart(formattedData);
+            
+            // Update last updated time
+            document.getElementById('last-updated').textContent = 
+                new Date().toLocaleTimeString();
+        }
+    }, (error) => {
+        console.error("Firebase error:", error);
+        document.getElementById('connection-status').textContent = "Disconnected";
+        document.querySelector('.status-dot').style.background = '#e74c3c';
+        
+        // Show test data if Firebase fails
+        console.log("Showing test data due to Firebase error");
+        showTestData();
+    });
+
+    // Test data fallback function
+    function showTestData() {
+        const testData = {
+            temperature: { 
+                value: 37.5, 
+                status: "normal",
+                unit: "°C"
+            },
+            heart_rate: { 
+                value: 72, 
+                status: "normal",
+                unit: "bpm"
+            },
+            spo2: { 
+                value: 98, 
+                status: "normal",
+                unit: "%"
+            },
+            bp_systolic: { 
+                value: 120, 
+                status: "normal",
+                unit: "mmHg"
+            },
+            bp_diastolic: { 
+                value: 80, 
+                status: "normal",
+                unit: "mmHg"
+            }
+        };
+        
+        // Remove loading message
+        document.querySelector('.loading').style.display = 'none';
+        
+        // Update dashboard with test data
+        updateDashboard(testData);
+        
+        // Add some history to chart
+        for (let i = 0; i < 10; i++) {
+            updateChart(testData);
+        }
+        
+        // Update last updated time
+        document.getElementById('last-updated').textContent = 
+            new Date().toLocaleTimeString();
+    }
 });
