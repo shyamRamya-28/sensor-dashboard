@@ -437,3 +437,28 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, 5000);
 });
+.no-data {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 40px;
+    background: #f8f9fa;
+    border-radius: 15px;
+    border: 2px dashed #dee2e6;
+}
+
+.no-data i {
+    font-size: 48px;
+    color: #6c757d;
+    margin-bottom: 20px;
+}
+
+.no-data p {
+    font-size: 20px;
+    color: #495057;
+    margin-bottom: 10px;
+}
+
+.no-data small {
+    color: #6c757d;
+    font-size: 14px;
+}
