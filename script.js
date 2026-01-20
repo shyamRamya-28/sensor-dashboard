@@ -58,7 +58,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // ========== PATIENT DATA FUNCTIONS ==========
     // Function to format patient data for dashboard
     function formatPatientData(patientData) {
         console.log("Raw patient data:", patientData);
@@ -69,62 +68,87 @@ document.addEventListener('DOMContentLoaded', function() {
             return {};
         }
         
-        // Try different possible structures
         const formatted = {};
         
-        // Structure 1: Direct values (temperature: 37.5)
+        // Map your sensor names to our expected format
+        const sensorMapping = {
+            // Your actual sensor names → Display names
+            'temperature': 'temperature',
+            'heartRate': 'heart_rate',
+            'spo2': 'spo2',
+            'airQuality': 'air_quality',
+            'ax': 'acceleration_x',
+            'ay': 'acceleration_y',
+            'az': 'acceleration_z'
+        };
+        
+        // Process each sensor
         Object.keys(patientData).forEach(key => {
             const value = patientData[key];
+            const displayKey = sensorMapping[key] || key;
             
-            if (typeof value === 'number') {
-                formatted[key] = {
-                    value: value,
-                    status: getStatus(key, value),
-                    unit: getUnit(key)
-                };
+            // Clean up the value (remove % sign, etc.)
+            let cleanValue = value;
+            if (typeof value === 'string') {
+                // Remove % sign from spo2
+                if (key === 'spo2' && value.includes('%')) {
+                    cleanValue = parseFloat(value.replace('%', ''));
+                }
+                // Try to convert string numbers
+                else if (!isNaN(parseFloat(value))) {
+                    cleanValue = parseFloat(value);
+                }
             }
-            // Structure 2: Object values (temperature: {value: 37.5})
-            else if (value && typeof value === 'object' && value.value !== undefined) {
-                formatted[key] = {
-                    value: value.value,
-                    status: value.status || getStatus(key, value.value),
-                    unit: value.unit || getUnit(key)
+            
+            if (typeof cleanValue === 'number') {
+                formatted[displayKey] = {
+                    value: cleanValue,
+                    status: getStatus(displayKey, cleanValue),
+                    unit: getUnit(displayKey)
+                };
+            } else if (typeof value === 'string') {
+                // For string values like airQuality
+                formatted[displayKey] = {
+                    value: value,
+                    status: value === "Poor" ? "alert" : "normal",
+                    unit: ""
                 };
             }
         });
         
-        console.log("Formatted data:", formatted);
+        console.log("Formatted data keys:", Object.keys(formatted));
         return formatted;
     }
 
-    // Helper function to determine status
-    function getStatus(sensorName, value) {
-        const thresholds = {
-            temperature: { min: 36, max: 38, normal: 37 },
-            heart_rate: { min: 60, max: 100, normal: 72 },
-            spo2: { min: 95, max: 100, normal: 98 },
-            bp_systolic: { min: 90, max: 120, normal: 110 },
-            bp_diastolic: { min: 60, max: 80, normal: 70 },
-            respiratory_rate: { min: 12, max: 20, normal: 16 },
-            glucose: { min: 70, max: 140, normal: 100 }
+       // Helper functions
+    function getSensorIcon(sensorName) {
+        const icons = {
+            temperature: 'fas fa-thermometer-half',
+            heart_rate: 'fas fa-heartbeat',
+            spo2: 'fas fa-lungs',
+            air_quality: 'fas fa-wind',
+            acceleration_x: 'fas fa-running',
+            acceleration_y: 'fas fa-running',
+            acceleration_z: 'fas fa-running',
+            default: 'fas fa-stethoscope'
         };
         
-        const threshold = thresholds[sensorName] || { min: 0, max: 100 };
-        
-        if (value < threshold.min || value > threshold.max) {
-            return "alert";
-        } else if (threshold.normal && Math.abs(value - threshold.normal) > (threshold.normal * 0.1)) {
-            return "warning";
+        const name = sensorName.toLowerCase();
+        for (const [key, icon] of Object.entries(icons)) {
+            if (name.includes(key)) return icon;
         }
-        return "normal";
+        return icons.default;
     }
-
-    // Helper function to get units
+       // Helper function to get units
     function getUnit(sensorName) {
         const units = {
             temperature: "°C",
             heart_rate: "bpm",
             spo2: "%",
+            air_quality: "level",
+            acceleration_x: "m/s²",
+            acceleration_y: "m/s²",
+            acceleration_z: "m/s²",
             bp_systolic: "mmHg",
             bp_diastolic: "mmHg",
             respiratory_rate: "bpm",
@@ -256,83 +280,62 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ========== FIREBASE LISTENER ==========
-    // CHANGE THIS PATH TO MATCH YOUR DATA
+    console.log("=== Connecting to Firebase Patient Data ===");
+    
+    // Get reference to patient data
+    // We'll get the LATEST timestamp data
     const patientRef = database.ref('patients/patient_001/2026-01-19');
     
     patientRef.on('value', (snapshot) => {
-        const data = snapshot.val();
-        console.log("Received patient data:", data);
+        const dateData = snapshot.val();
+        console.log("Received date data:", dateData);
         
-        if (data) {
-            // Remove loading message
-            document.querySelector('.loading').style.display = 'none';
+        if (dateData && typeof dateData === 'object') {
+            // Get all timestamp keys (like "18:31:32")
+            const timestamps = Object.keys(dateData);
+            console.log("Available timestamps:", timestamps);
             
-            // Format the data for our dashboard
-            const formattedData = formatPatientData(data);
-            
-            // Update dashboard
-            updateDashboard(formattedData);
-            
-            // Update chart
-            updateChart(formattedData);
-            
-            // Update last updated time
-            document.getElementById('last-updated').textContent = 
-                new Date().toLocaleTimeString();
+            if (timestamps.length > 0) {
+                // Get the LATEST timestamp (last one in the object)
+                const latestTimestamp = timestamps[timestamps.length - 1];
+                console.log("Using latest timestamp:", latestTimestamp);
+                
+                // Get the actual sensor data from this timestamp
+                const sensorData = dateData[latestTimestamp];
+                console.log("Sensor data:", sensorData);
+                
+                // Remove loading message
+                document.querySelector('.loading').style.display = 'none';
+                
+                // Format the data for our dashboard
+                const formattedData = formatPatientData(sensorData);
+                console.log("Formatted data:", formattedData);
+                
+                // Update dashboard
+                updateDashboard(formattedData);
+                
+                // Update chart with latest values
+                updateChart(formattedData);
+                
+                // Update last updated time
+                document.getElementById('last-updated').textContent = 
+                    `Today at ${latestTimestamp}`;
+                    
+                console.log("Dashboard updated successfully!");
+            } else {
+                console.error("No timestamps found in date data");
+                showTestData();
+            }
+        } else {
+            console.error("No data found for this date");
+            showTestData();
         }
     }, (error) => {
-        console.error("Firebase error:", error);
+        console.error("Firebase connection error:", error);
         document.getElementById('connection-status').textContent = "Disconnected";
         document.querySelector('.status-dot').style.background = '#e74c3c';
         
-        // Show test data if Firebase fails
         console.log("Showing test data due to Firebase error");
         showTestData();
     });
 
-    // Test data fallback function
-    function showTestData() {
-        const testData = {
-            temperature: { 
-                value: 37.5, 
-                status: "normal",
-                unit: "°C"
-            },
-            heart_rate: { 
-                value: 72, 
-                status: "normal",
-                unit: "bpm"
-            },
-            spo2: { 
-                value: 98, 
-                status: "normal",
-                unit: "%"
-            },
-            bp_systolic: { 
-                value: 120, 
-                status: "normal",
-                unit: "mmHg"
-            },
-            bp_diastolic: { 
-                value: 80, 
-                status: "normal",
-                unit: "mmHg"
-            }
-        };
-        
-        // Remove loading message
-        document.querySelector('.loading').style.display = 'none';
-        
-        // Update dashboard with test data
-        updateDashboard(testData);
-        
-        // Add some history to chart
-        for (let i = 0; i < 10; i++) {
-            updateChart(testData);
-        }
-        
-        // Update last updated time
-        document.getElementById('last-updated').textContent = 
-            new Date().toLocaleTimeString();
-    }
-});
