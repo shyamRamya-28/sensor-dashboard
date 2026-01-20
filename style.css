@@ -233,4 +233,79 @@ footer {
     .dashboard {
         grid-template-columns: 1fr; /* 1 column on mobile */
     }
+}/* Date/Time Selector */
+.data-selector {
+    background: white;
+    border-radius: 15px;
+    padding: 20px;
+    margin: 20px 40px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
 }
+
+.data-selector h2 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.selector-controls {
+    display: flex;
+    gap: 30px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.date-selector, .time-selector {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.date-selector label, .time-selector label {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.date-selector select {
+    padding: 8px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: white;
+    font-size: 16px;
+}
+
+#current-timestamp {
+    font-size: 18px;
+    font-weight: 600;
+    color: #3498db;
+    padding: 8px 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    min-width: 100px;
+    text-align: center;
+}
+
+#prev-btn, #next-btn {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 8px;
+    background: #3498db;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: background 0.3s;
+}
+
+#prev-btn:hover, #next-btn:hover {
+    background: #2980b9;
+}
+
+#prev-btn:disabled, #next-btn:disabled {
+    background: #95a5a6;
+    cursor: not-allowed;
+}
+
