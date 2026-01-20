@@ -420,5 +420,26 @@ document.addEventListener('DOMContentLoaded', function() {
             showTestData();
         }
     }, 5000);
-});
+    // Auto-refresh every 10 seconds
+    setInterval(() => {
+        console.log("Auto-refreshing data...");
+        patientRef.off(); // Remove old listener
+        patientRef.on('value', (snapshot) => {
+            // Your existing listener code here
+            const dateData = snapshot.val();
+            if (dateData) {
+                const timestamps = Object.keys(dateData);
+                if (timestamps.length > 0) {
+                    const latestTimestamp = timestamps[timestamps.length - 1];
+                    const sensorData = dateData[latestTimestamp];
+                    const formattedData = formatPatientData(sensorData);
+                    updateDashboard(formattedData);
+                    updateChart(formattedData);
+                    document.getElementById('last-updated').textContent = 
+                        new Date().toLocaleTimeString();
+                }
+            }
+        });
+    }, 10000); // 10 seconds});
+
 
