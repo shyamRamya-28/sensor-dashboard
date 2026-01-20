@@ -63,24 +63,27 @@ document.addEventListener('DOMContentLoaded', function() {
     // Helper function to determine status
     function getStatus(sensorName, value) {
         const thresholds = {
-            temperature: { min: 36, max: 38, normal: 37 },
-            heart_rate: { min: 60, max: 100, normal: 72 },
-            spo2: { min: 95, max: 100, normal: 98 },
-            air_quality: { min: 0, max: 50, normal: 25 },
-            acceleration_x: { min: -10000, max: 10000, normal: 0 },
-            acceleration_y: { min: -10000, max: 10000, normal: 0 },
-            acceleration_z: { min: -10000, max: 10000, normal: 0 }
+            temperature: { min: 35, max: 42, normal: 37 },
+            heart_rate: { min: 40, max: 180, normal: 72 },
+            spo2: { min: 90, max: 100, normal: 98 },
+            air_quality: { normalValues: ["Good", "Fair"] },
+            acceleration_x: { min: -20000, max: 20000, normal: 0 },
+            acceleration_y: { min: -20000, max: 20000, normal: 0 },
+            acceleration_z: { min: -20000, max: 20000, normal: 0 }
         };
         
-        const threshold = thresholds[sensorName] || { min: 0, max: 100 };
+        const threshold = thresholds[sensorName];
+        if (!threshold) return "normal";
         
-        // Skip bad sensor values
-        if (sensorName === 'heart_rate' && value === -999) return "offline";
-        if (sensorName === 'spo2' && value === 0) return "offline";
+        // Special handling for air_quality (string)
+        if (sensorName === 'air_quality') {
+            return threshold.normalValues.includes(value) ? "normal" : "alert";
+        }
         
+        // For numeric sensors
         if (value < threshold.min || value > threshold.max) {
             return "alert";
-        } else if (threshold.normal && Math.abs(value - threshold.normal) > (threshold.normal * 0.2)) {
+        } else if (threshold.normal && Math.abs(value - threshold.normal) > (threshold.normal * 0.15)) {
             return "warning";
         }
         return "normal";
@@ -92,85 +95,65 @@ document.addEventListener('DOMContentLoaded', function() {
             temperature: "°C",
             heart_rate: "bpm",
             spo2: "%",
-            air_quality: "level",
+            air_quality: "",
             acceleration_x: "m/s²",
             acceleration_y: "m/s²",
             acceleration_z: "m/s²"
         };
-        return units[sensorName] || "units";
+        return units[sensorName] || "";
     }
 
     // Function to format patient data for dashboard
     function formatPatientData(patientData) {
-        console.log("Raw patient data:", patientData);
+        console.log("=== FORMAT PATIENT DATA ===");
+        console.log("Input data:", patientData);
         
-        // If data is null or empty
         if (!patientData) {
-            console.warn("No patient data found");
+            console.warn("No patient data provided");
             return {};
         }
         
         const formatted = {};
         
-        // Map your sensor names to our expected format
-        const sensorMapping = {
-            'temperature': 'temperature',
-            'heartRate': 'heart_rate',
-            'spo2': 'spo2',
-            'airQuality': 'air_quality',
-            'ax': 'acceleration_x',
-            'ay': 'acceleration_y',
-            'az': 'acceleration_z'
-        };
-        
-        // Bad values to filter out
-        const badValues = {
-            'heartRate': [-999],
-            'spo2': [0]
-        };
-        
         // Process each sensor
         Object.keys(patientData).forEach(key => {
-            const value = patientData[key];
-            const displayKey = sensorMapping[key] || key;
+            const rawValue = patientData[key];
+            let displayKey = key;
+            let cleanValue = rawValue;
             
-            // Clean up the value (remove % sign, etc.)
-            let cleanValue = value;
+            // Map keys to display names
+            const keyMap = {
+                'airQuality': 'air_quality',
+                'heartRate': 'heart_rate',
+                'spo2': 'spo2',
+                'temperature': 'temperature',
+                'ax': 'acceleration_x',
+                'ay': 'acceleration_y',
+                'az': 'acceleration_z'
+            };
             
-            // Skip if value is in bad values list
-            if (badValues[key] && badValues[key].includes(value)) {
-                console.log(`Skipping bad value for ${key}: ${value}`);
-                return;
-            }
+            displayKey = keyMap[key] || key;
             
-            if (typeof value === 'string') {
-                // Remove % sign from spo2
-                if (key === 'spo2' && value.includes('%')) {
-                    cleanValue = parseFloat(value.replace('%', ''));
-                }
-                // Try to convert string numbers
-                else if (!isNaN(parseFloat(value))) {
-                    cleanValue = parseFloat(value);
-                }
-            }
-            
+            // Create sensor object
             if (typeof cleanValue === 'number' && !isNaN(cleanValue)) {
                 formatted[displayKey] = {
                     value: cleanValue,
                     status: getStatus(displayKey, cleanValue),
                     unit: getUnit(displayKey)
                 };
-            } else if (typeof value === 'string') {
-                // For string values like airQuality
+                console.log(`Added ${displayKey}:`, formatted[displayKey]);
+            } else if (typeof cleanValue === 'string') {
                 formatted[displayKey] = {
-                    value: value,
-                    status: value === "Poor" ? "alert" : "normal",
+                    value: cleanValue,
+                    status: cleanValue === "Poor" ? "alert" : "normal",
                     unit: ""
                 };
+                console.log(`Added string ${displayKey}:`, formatted[displayKey]);
             }
         });
         
-        console.log("Formatted data keys:", Object.keys(formatted));
+        console.log("Final formatted data keys:", Object.keys(formatted));
+        console.log("Formatted data:", formatted);
         return formatted;
     }
     
@@ -195,13 +178,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function formatSensorName(name) {
-        return name.replace(/_/g, ' ')
-                   .replace(/\b\w/g, l => l.toUpperCase())
-                   .replace('Bp', 'BP')
-                   .replace('Spo2', 'SpO₂')
-                   .replace('Ax', 'Acceleration X')
-                   .replace('Ay', 'Acceleration Y')
-                   .replace('Az', 'Acceleration Z');
+        const nameMap = {
+            'temperature': 'Temperature',
+            'heart_rate': 'Heart Rate',
+            'spo2': 'SpO₂',
+            'air_quality': 'Air Quality',
+            'acceleration_x': 'Acceleration X',
+            'acceleration_y': 'Acceleration Y',
+            'acceleration_z': 'Acceleration Z'
+        };
+        
+        return nameMap[name] || name.replace(/_/g, ' ')
+                                   .replace(/\b\w/g, l => l.toUpperCase());
     }
 
     function getStatusBadge(data) {
@@ -220,6 +208,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Function to update dashboard cards
     function updateDashboard(data) {
+        console.log("=== UPDATE DASHBOARD ===");
+        console.log("Data to display:", data);
+        
         const dashboard = document.querySelector('.dashboard');
         
         // Clear loading message
@@ -249,6 +240,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const card = createSensorCard(sensorName, sensorData);
             dashboard.appendChild(card);
         });
+        
+        console.log(`Displayed ${Object.keys(data).length} sensor cards`);
     }
 
     // Function to create sensor card
@@ -261,9 +254,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Format value display
         let displayValue = sensorData.value;
-        if (typeof sensorData.value === 'string') {
-            displayValue = sensorData.value;
-        } else if (typeof sensorData.value === 'number') {
+        if (typeof sensorData.value === 'number') {
             // Round to 2 decimal places for numbers
             displayValue = Math.round(sensorData.value * 100) / 100;
         }
@@ -282,7 +273,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="sensor-footer">
                 <span>Patient: 001</span>
-                <span>Updated: Just now</span>
+                <span>Time: 18:35:19</span>
             </div>
         `;
         
@@ -372,13 +363,11 @@ document.addEventListener('DOMContentLoaded', function() {
     patientRef.on('value', (snapshot) => {
         const dateData = snapshot.val();
         console.log("=== FIREBASE DATA ===");
-        console.log("Date data received:", dateData);
-        console.log("Date data type:", typeof dateData);
+        console.log("Date data received, timestamps:", Object.keys(dateData || {}));
         
         if (dateData && typeof dateData === 'object') {
-            // Get all timestamp keys (like "18:31:32")
+            // Get all timestamp keys
             const timestamps = Object.keys(dateData);
-            console.log("Available timestamps:", timestamps);
             
             if (timestamps.length > 0) {
                 // Get the LATEST timestamp
@@ -387,13 +376,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Get the actual sensor data
                 const sensorData = dateData[latestTimestamp];
-                console.log("Sensor data from timestamp:", sensorData);
-                console.log("Sensor data keys:", Object.keys(sensorData || {}));
+                console.log("Sensor data:", sensorData);
                 
                 if (sensorData && typeof sensorData === 'object') {
                     // Format the data
                     const formattedData = formatPatientData(sensorData);
-                    console.log("Formatted data ready:", formattedData);
                     
                     // Update dashboard
                     updateDashboard(formattedData);
@@ -415,7 +402,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 showTestData();
             }
         } else {
-            console.error("No date data found or wrong format");
+            console.error("No date data found");
             showTestData();
         }
     }, (error) => {
@@ -437,28 +424,3 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, 5000);
 });
-.no-data {
-    grid-column: 1 / -1;
-    text-align: center;
-    padding: 40px;
-    background: #f8f9fa;
-    border-radius: 15px;
-    border: 2px dashed #dee2e6;
-}
-
-.no-data i {
-    font-size: 48px;
-    color: #6c757d;
-    margin-bottom: 20px;
-}
-
-.no-data p {
-    font-size: 20px;
-    color: #495057;
-    margin-bottom: 10px;
-}
-
-.no-data small {
-    color: #6c757d;
-    font-size: 14px;
-}
