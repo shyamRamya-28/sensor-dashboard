@@ -1,5 +1,10 @@
 // Wait for DOM to load
 document.addEventListener('DOMContentLoaded', function() {
+    // Global variables
+    let currentDate = '2026-01-19';
+    let currentTimestamps = [];
+    let currentTimestampIndex = 0;
+    
     // Update time every second
     function updateTime() {
         const now = new Date();
@@ -25,10 +30,10 @@ document.addEventListener('DOMContentLoaded', function() {
         data: {
             labels: [],
             datasets: [{
-                label: 'Patient Health Data',
+                label: 'Heart Rate (bpm)',
                 data: [],
-                borderColor: '#3498db',
-                backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                borderColor: '#e74c3c',
+                backgroundColor: 'rgba(231, 76, 60, 0.1)',
                 borderWidth: 3,
                 fill: true,
                 tension: 0.4
@@ -47,11 +52,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     beginAtZero: false,
                     grid: {
                         color: 'rgba(0,0,0,0.05)'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Value'
                     }
                 },
                 x: {
                     grid: {
                         color: 'rgba(0,0,0,0.05)'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Time'
                     }
                 }
             }
@@ -60,11 +73,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ========== PATIENT DATA FUNCTIONS ==========
     
-       // Helper function to determine status - TESTING VERSION
+    // Helper function to determine status
     function getStatus(sensorName, value) {
         const thresholds = {
-            temperature: { min: 20, max: 45, normal: 37 }, // Wider for testing
-            heart_rate: { min: 30, max: 200, normal: 72 },  // Wider for testing
+            temperature: { min: 20, max: 45, normal: 37 },
+            heart_rate: { min: 30, max: 200, normal: 72 },
             spo2: { min: 90, max: 100, normal: 98 },
             air_quality: { normalValues: ["Good", "Fair", "Moderate"] },
             acceleration_x: { min: -20000, max: 20000, normal: 0 },
@@ -77,15 +90,16 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Special handling for air_quality (string)
         if (sensorName === 'air_quality') {
-            return threshold.normalValues.includes(value) ? "normal" : "alert";
+            return threshold.normalValues.includes(value) ? "normal" : "warning";
         }
         
-        // For numeric sensors - show warning instead of alert for extreme values
+        // For numeric sensors
         if (value < threshold.min || value > threshold.max) {
-            return "warning"; // Changed from "alert" to "warning" for testing
+            return "warning";
         }
         return "normal";
     }
+
     // Helper function to get units
     function getUnit(sensorName) {
         const units = {
@@ -102,15 +116,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Function to format patient data for dashboard
     function formatPatientData(patientData) {
-        console.log("=== FORMAT PATIENT DATA ===");
-        console.log("Input data:", patientData);
-        
         if (!patientData) {
             console.warn("No patient data provided");
             return {};
         }
         
         const formatted = {};
+        let alertCount = 0;
         
         // Process each sensor
         Object.keys(patientData).forEach(key => {
@@ -133,24 +145,29 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Create sensor object
             if (typeof cleanValue === 'number' && !isNaN(cleanValue)) {
+                const status = getStatus(displayKey, cleanValue);
+                if (status === "warning") alertCount++;
+                
                 formatted[displayKey] = {
                     value: cleanValue,
-                    status: getStatus(displayKey, cleanValue),
+                    status: status,
                     unit: getUnit(displayKey)
                 };
-                console.log(`Added ${displayKey}:`, formatted[displayKey]);
             } else if (typeof cleanValue === 'string') {
+                const status = cleanValue === "Poor" ? "warning" : "normal";
+                if (status === "warning") alertCount++;
+                
                 formatted[displayKey] = {
                     value: cleanValue,
-                    status: cleanValue === "Poor" ? "alert" : "normal",
+                    status: status,
                     unit: ""
                 };
-                console.log(`Added string ${displayKey}:`, formatted[displayKey]);
             }
         });
         
-        console.log("Final formatted data keys:", Object.keys(formatted));
-        console.log("Formatted data:", formatted);
+        // Update alert count
+        document.getElementById('alert-count').textContent = alertCount;
+        
         return formatted;
     }
     
@@ -201,13 +218,33 @@ document.addEventListener('DOMContentLoaded', function() {
         
         return badges[status] || badges.normal;
     }
-    // ========== END PATIENT DATA FUNCTIONS ==========
+    
+    // Calculate averages for summary
+    function calculateAverages(formattedData) {
+        if (!formattedData || Object.keys(formattedData).length === 0) {
+            document.getElementById('avg-heart-rate').textContent = '--';
+            document.getElementById('avg-temperature').textContent = '--';
+            document.getElementById('avg-spo2').textContent = '--';
+            return;
+        }
+        
+        // For now, just show current values (you can modify to calculate real averages)
+        if (formattedData.heart_rate) {
+            document.getElementById('avg-heart-rate').textContent = 
+                Math.round(formattedData.heart_rate.value);
+        }
+        if (formattedData.temperature) {
+            document.getElementById('avg-temperature').textContent = 
+                Math.round(formattedData.temperature.value * 10) / 10 + '°C';
+        }
+        if (formattedData.spo2) {
+            document.getElementById('avg-spo2').textContent = 
+                Math.round(formattedData.spo2.value) + '%';
+        }
+    }
 
     // Function to update dashboard cards
     function updateDashboard(data) {
-        console.log("=== UPDATE DASHBOARD ===");
-        console.log("Data to display:", data);
-        
         const dashboard = document.querySelector('.dashboard');
         
         // Clear loading message
@@ -219,14 +256,13 @@ document.addEventListener('DOMContentLoaded', function() {
         oldCards.forEach(card => card.remove());
         
         // Check if we have data
-        if (Object.keys(data).length === 0) {
-            console.log("No valid sensor data to display");
+        if (!data || Object.keys(data).length === 0) {
             const noDataMsg = document.createElement('div');
             noDataMsg.className = 'no-data';
             noDataMsg.innerHTML = `
                 <i class="fas fa-exclamation-triangle"></i>
-                <p>No valid sensor data available</p>
-                <small>Check if sensors are connected and sending data</small>
+                <p>No sensor data available</p>
+                <small>Check sensor connections</small>
             `;
             dashboard.appendChild(noDataMsg);
             return;
@@ -238,7 +274,8 @@ document.addEventListener('DOMContentLoaded', function() {
             dashboard.appendChild(card);
         });
         
-        console.log(`Displayed ${Object.keys(data).length} sensor cards`);
+        // Update summary statistics
+        calculateAverages(data);
     }
 
     // Function to create sensor card
@@ -270,7 +307,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="sensor-footer">
                 <span>Patient: 001</span>
-                <span>Time: 18:35:19</span>
+                <span>Time: ${currentTimestamps[currentTimestampIndex] || '--:--:--'}</span>
             </div>
         `;
         
@@ -279,26 +316,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Function to update chart
     function updateChart(data) {
-        const now = new Date();
-        const timeLabel = now.getHours() + ':' + 
-                         now.getMinutes().toString().padStart(2, '0') + ':' + 
-                         now.getSeconds().toString().padStart(2, '0');
+        if (!data.heart_rate) return;
         
-        // Get first valid sensor value for chart
-        const sensors = Object.values(data);
-        if (sensors.length === 0) return;
-        
-        const firstSensor = sensors.find(s => typeof s.value === 'number');
-        if (!firstSensor) return;
-        
-        const value = firstSensor.value;
+        const value = data.heart_rate.value;
         
         // Add new data point
+        const timeLabel = currentTimestamps[currentTimestampIndex] || '--:--:--';
         sensorChart.data.labels.push(timeLabel);
         sensorChart.data.datasets[0].data.push(value);
         
-        // Keep only last 20 points
-        if (sensorChart.data.labels.length > 20) {
+        // Keep only last 15 points
+        if (sensorChart.data.labels.length > 15) {
             sensorChart.data.labels.shift();
             sensorChart.data.datasets[0].data.shift();
         }
@@ -306,140 +334,125 @@ document.addEventListener('DOMContentLoaded', function() {
         sensorChart.update();
     }
 
-    // Test data fallback function
-    function showTestData() {
-        console.log("Showing test data");
-        const testData = {
-            temperature: { 
-                value: 37.5, 
-                status: "normal",
-                unit: "°C"
-            },
-            heart_rate: { 
-                value: 72, 
-                status: "normal",
-                unit: "bpm"
-            },
-            spo2: { 
-                value: 98, 
-                status: "normal",
-                unit: "%"
-            },
-            air_quality: { 
-                value: "Good", 
-                status: "normal",
-                unit: ""
-            }
-        };
+    // Function to update timestamp display
+    function updateTimestampDisplay() {
+        const timestampElement = document.getElementById('current-timestamp');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
         
-        // Remove loading message
-        const loading = document.querySelector('.loading');
-        if (loading) loading.style.display = 'none';
-        
-        // Update dashboard with test data
-        updateDashboard(testData);
-        
-        // Add some history to chart
-        for (let i = 0; i < 10; i++) {
-            updateChart(testData);
-        }
-        
-        // Update last updated time
-        document.getElementById('last-updated').textContent = 
-            new Date().toLocaleTimeString();
+        if (currentTimestamps.length > 0) {
+            timestampElement.textContent = currentTimestamps[currentTimestampIndex];
             
-        console.log("Test data displayed");
+            // Enable/disable navigation buttons
+            prevBtn.disabled = currentTimestampIndex === 0;
+            nextBtn.disabled = currentTimestampIndex === currentTimestamps.length - 1;
+        } else {
+            timestampElement.textContent = '--:--:--';
+            prevBtn.disabled = true;
+            nextBtn.disabled = true;
+        }
     }
 
-    // ========== FIREBASE LISTENER ==========
-    console.log("=== Connecting to Firebase Patient Data ===");
-    
-    // Get reference to patient data
-    const patientRef = database.ref('patients/patient_001/2026-01-19');
-    
-    patientRef.on('value', (snapshot) => {
-        const dateData = snapshot.val();
-        console.log("=== FIREBASE DATA ===");
-        console.log("Date data received, timestamps:", Object.keys(dateData || {}));
+    // Function to load data for selected date and timestamp
+    function loadPatientData() {
+        console.log(`Loading data for date: ${currentDate}`);
         
-        if (dateData && typeof dateData === 'object') {
-            // Get all timestamp keys
-            const timestamps = Object.keys(dateData);
+        const patientRef = database.ref(`patients/patient_001/${currentDate}`);
+        
+        patientRef.once('value').then((snapshot) => {
+            const dateData = snapshot.val();
             
-            if (timestamps.length > 0) {
-                // Get the LATEST timestamp
-                const latestTimestamp = timestamps[timestamps.length - 1];
-                console.log("Latest timestamp:", latestTimestamp);
+            if (dateData && typeof dateData === 'object') {
+                // Get all timestamps
+                currentTimestamps = Object.keys(dateData).sort();
                 
-                // Get the actual sensor data
-                const sensorData = dateData[latestTimestamp];
-                console.log("Sensor data:", sensorData);
-                
-                if (sensorData && typeof sensorData === 'object') {
-                    // Format the data
+                if (currentTimestamps.length > 0) {
+                    // Start with the latest timestamp
+                    currentTimestampIndex = currentTimestamps.length - 1;
+                    
+                    // Update timestamp display
+                    updateTimestampDisplay();
+                    
+                    // Get sensor data for current timestamp
+                    const sensorData = dateData[currentTimestamps[currentTimestampIndex]];
+                    
+                    // Format and display data
                     const formattedData = formatPatientData(sensorData);
-                    
-                    // Update dashboard
                     updateDashboard(formattedData);
-                    
-                    // Update chart
                     updateChart(formattedData);
                     
                     // Update last updated time
                     document.getElementById('last-updated').textContent = 
-                        `Today at ${latestTimestamp}`;
+                        new Date().toLocaleTimeString();
                         
-                    console.log("Dashboard updated with real data!");
+                    console.log(`Loaded ${currentTimestamps.length} timestamps`);
                 } else {
-                    console.error("No sensor data in timestamp");
-                    showTestData();
+                    console.error("No timestamps found for this date");
+                    updateDashboard({});
                 }
             } else {
-                console.error("No timestamps found");
-                showTestData();
+                console.error("No data found for this date");
+                updateDashboard({});
             }
-        } else {
-            console.error("No date data found");
-            showTestData();
-        }
-    }, (error) => {
-        console.error("Firebase connection error:", error);
-        document.getElementById('connection-status').textContent = "Disconnected";
-        const statusDot = document.querySelector('.status-dot');
-        if (statusDot) statusDot.style.background = '#e74c3c';
-        
-        showTestData();
+        }).catch((error) => {
+            console.error("Error loading data:", error);
+            document.getElementById('connection-status').textContent = "Error";
+            document.querySelector('.status-dot').style.background = '#e74c3c';
+            updateDashboard({});
+        });
+    }
+
+    // ========== EVENT LISTENERS ==========
+    
+    // Date selector change
+    document.getElementById('date-select').addEventListener('change', function(e) {
+        currentDate = e.target.value;
+        currentTimestampIndex = 0;
+        loadPatientData();
     });
     
-    // Force test data after 5 seconds if nothing shows
-    setTimeout(() => {
-        const cards = document.querySelectorAll('.sensor-card');
-        const noData = document.querySelector('.no-data');
-        if (cards.length === 0 && !noData) {
-            console.log("No data displayed after 5 seconds, showing test data");
-            showTestData();
+    // Previous button
+    document.getElementById('prev-btn').addEventListener('click', function() {
+        if (currentTimestampIndex > 0) {
+            currentTimestampIndex--;
+            updateTimestampDisplay();
+            loadDataForCurrentTimestamp();
         }
-    }, 5000);
-    // Auto-refresh every 10 seconds
-    setInterval(() => {
-        console.log("Auto-refreshing data...");
-        patientRef.off(); // Remove old listener
-        patientRef.on('value', (snapshot) => {
-            // Your existing listener code here
+    });
+    
+    // Next button
+    document.getElementById('next-btn').addEventListener('click', function() {
+        if (currentTimestampIndex < currentTimestamps.length - 1) {
+            currentTimestampIndex++;
+            updateTimestampDisplay();
+            loadDataForCurrentTimestamp();
+        }
+    });
+    
+    // Function to load data for current timestamp
+    function loadDataForCurrentTimestamp() {
+        const patientRef = database.ref(`patients/patient_001/${currentDate}`);
+        
+        patientRef.once('value').then((snapshot) => {
             const dateData = snapshot.val();
-            if (dateData) {
-                const timestamps = Object.keys(dateData);
-                if (timestamps.length > 0) {
-                    const latestTimestamp = timestamps[timestamps.length - 1];
-                    const sensorData = dateData[latestTimestamp];
-                    const formattedData = formatPatientData(sensorData);
-                    updateDashboard(formattedData);
-                    updateChart(formattedData);
-                    document.getElementById('last-updated').textContent = 
-                        new Date().toLocaleTimeString();
-                }
+            if (dateData && currentTimestamps[currentTimestampIndex]) {
+                const sensorData = dateData[currentTimestamps[currentTimestampIndex]];
+                const formattedData = formatPatientData(sensorData);
+                updateDashboard(formattedData);
+                updateChart(formattedData);
             }
         });
-    }, 10000); // 10 seconds});
+    }
 
-
+    // ========== INITIAL LOAD ==========
+    console.log("=== Starting Patient Health Dashboard ===");
+    
+    // Load initial data
+    loadPatientData();
+    
+    // Auto-refresh every 30 seconds
+    setInterval(() => {
+        console.log("Auto-refreshing data...");
+        loadPatientData();
+    }, 30000);
+});
