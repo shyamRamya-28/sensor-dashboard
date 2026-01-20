@@ -1,9 +1,20 @@
 // Wait for DOM to load
 document.addEventListener('DOMContentLoaded', function() {
     // Global variables
-    let currentDate = '2026-01-19';
+    let currentDate = getCurrentDate(); // Automatically use today's date
     let currentTimestamps = [];
     let currentTimestampIndex = 0;
+    let liveUpdateInterval;
+    let isLiveMode = true; // Start in live mode
+    
+    // Get current date in YYYY-MM-DD format
+    function getCurrentDate() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
     
     // Update time every second
     function updateTime() {
@@ -76,8 +87,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Helper function to determine status
     function getStatus(sensorName, value) {
         const thresholds = {
-            temperature: { min: 20, max: 45, normal: 37 },
-            heart_rate: { min: 30, max: 200, normal: 72 },
+            temperature: { min: 35, max: 42, normal: 37 },
+            heart_rate: { min: 60, max: 100, normal: 72 },
             spo2: { min: 90, max: 100, normal: 98 },
             air_quality: { normalValues: ["Good", "Fair", "Moderate"] },
             acceleration_x: { min: -20000, max: 20000, normal: 0 },
@@ -244,7 +255,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Function to update dashboard cards
-    function updateDashboard(data) {
+    function updateDashboard(data, timestamp = 'Live') {
         const dashboard = document.querySelector('.dashboard');
         
         // Clear loading message
@@ -262,7 +273,7 @@ document.addEventListener('DOMContentLoaded', function() {
             noDataMsg.innerHTML = `
                 <i class="fas fa-exclamation-triangle"></i>
                 <p>No sensor data available</p>
-                <small>Check sensor connections</small>
+                <small>Waiting for live sensor data...</small>
             `;
             dashboard.appendChild(noDataMsg);
             return;
@@ -270,7 +281,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Create cards for each sensor
         Object.entries(data).forEach(([sensorName, sensorData]) => {
-            const card = createSensorCard(sensorName, sensorData);
+            const card = createSensorCard(sensorName, sensorData, timestamp);
             dashboard.appendChild(card);
         });
         
@@ -279,7 +290,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Function to create sensor card
-    function createSensorCard(sensorName, sensorData) {
+    function createSensorCard(sensorName, sensorData, timestamp) {
         const card = document.createElement('div');
         card.className = 'sensor-card';
         
@@ -307,7 +318,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="sensor-footer">
                 <span>Patient: 001</span>
-                <span>Time: ${currentTimestamps[currentTimestampIndex] || '--:--:--'}</span>
+                <span>${timestamp === 'Live' ? 'Live Now' : 'Time: ' + timestamp}</span>
             </div>
         `;
         
@@ -315,18 +326,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Function to update chart
-    function updateChart(data) {
+    function updateChart(data, timestamp) {
         if (!data.heart_rate) return;
         
         const value = data.heart_rate.value;
+        const timeLabel = timestamp === 'Live' ? new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'}) : timestamp;
         
         // Add new data point
-        const timeLabel = currentTimestamps[currentTimestampIndex] || '--:--:--';
         sensorChart.data.labels.push(timeLabel);
         sensorChart.data.datasets[0].data.push(value);
         
-        // Keep only last 15 points
-        if (sensorChart.data.labels.length > 15) {
+        // Keep only last 20 points
+        if (sensorChart.data.labels.length > 20) {
             sensorChart.data.labels.shift();
             sensorChart.data.datasets[0].data.shift();
         }
@@ -340,12 +351,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const prevBtn = document.getElementById('prev-btn');
         const nextBtn = document.getElementById('next-btn');
         
-        if (currentTimestamps.length > 0) {
+        if (currentTimestamps.length > 0 && !isLiveMode) {
             timestampElement.textContent = currentTimestamps[currentTimestampIndex];
             
             // Enable/disable navigation buttons
             prevBtn.disabled = currentTimestampIndex === 0;
             nextBtn.disabled = currentTimestampIndex === currentTimestamps.length - 1;
+        } else if (isLiveMode) {
+            timestampElement.textContent = 'LIVE';
+            timestampElement.style.color = '#2ecc71';
+            timestampElement.style.fontWeight = 'bold';
+            prevBtn.disabled = true;
+            nextBtn.disabled = true;
         } else {
             timestampElement.textContent = '--:--:--';
             prevBtn.disabled = true;
@@ -353,9 +370,63 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Function to load data for selected date and timestamp
-    function loadPatientData() {
-        console.log(`Loading data for date: ${currentDate}`);
+    // ========== LIVE MODE FUNCTIONS ==========
+    
+    // Start live updates
+    function startLiveUpdates() {
+        console.log("Starting live updates...");
+        isLiveMode = true;
+        updateTimestampDisplay();
+        
+        // Get reference to today's data
+        const today = getCurrentDate();
+        const patientRef = database.ref(`patients/patient_001/${today}`);
+        
+        // Listen for new data in real-time
+        patientRef.on('child_added', (snapshot) => {
+            const timestamp = snapshot.key;
+            const sensorData = snapshot.val();
+            
+            console.log(`New data received at ${timestamp}:`, sensorData);
+            
+            // Format and display the new data
+            const formattedData = formatPatientData(sensorData);
+            updateDashboard(formattedData, 'Live');
+            updateChart(formattedData, timestamp);
+            
+            // Update last updated time
+            document.getElementById('last-updated').textContent = 
+                new Date().toLocaleTimeString();
+            
+            // Update connection status
+            document.getElementById('connection-status').textContent = "Live";
+            document.querySelector('.status-dot').style.background = '#2ecc71';
+            document.querySelector('.status-dot').style.animation = 'pulse 1s infinite';
+        });
+        
+        // Also update when data changes
+        patientRef.on('child_changed', (snapshot) => {
+            console.log("Data updated:", snapshot.key, snapshot.val());
+        });
+        
+        // Store the reference to turn off later if needed
+        window.livePatientRef = patientRef;
+    }
+    
+    // Stop live updates
+    function stopLiveUpdates() {
+        if (window.livePatientRef) {
+            window.livePatientRef.off();
+            console.log("Live updates stopped");
+        }
+        isLiveMode = false;
+        updateTimestampDisplay();
+    }
+    
+    // Function to load historical data
+    function loadHistoricalData() {
+        console.log(`Loading historical data for date: ${currentDate}`);
+        stopLiveUpdates();
         
         const patientRef = database.ref(`patients/patient_001/${currentDate}`);
         
@@ -378,14 +449,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // Format and display data
                     const formattedData = formatPatientData(sensorData);
-                    updateDashboard(formattedData);
-                    updateChart(formattedData);
+                    updateDashboard(formattedData, currentTimestamps[currentTimestampIndex]);
+                    updateChart(formattedData, currentTimestamps[currentTimestampIndex]);
                     
                     // Update last updated time
                     document.getElementById('last-updated').textContent = 
                         new Date().toLocaleTimeString();
                         
-                    console.log(`Loaded ${currentTimestamps.length} timestamps`);
+                    console.log(`Loaded ${currentTimestamps.length} historical readings`);
                 } else {
                     console.error("No timestamps found for this date");
                     updateDashboard({});
@@ -407,13 +478,18 @@ document.addEventListener('DOMContentLoaded', function() {
     // Date selector change
     document.getElementById('date-select').addEventListener('change', function(e) {
         currentDate = e.target.value;
-        currentTimestampIndex = 0;
-        loadPatientData();
+        if (currentDate === getCurrentDate()) {
+            // If selecting today, switch to live mode
+            startLiveUpdates();
+        } else {
+            // If selecting past date, load historical data
+            loadHistoricalData();
+        }
     });
     
     // Previous button
     document.getElementById('prev-btn').addEventListener('click', function() {
-        if (currentTimestampIndex > 0) {
+        if (!isLiveMode && currentTimestampIndex > 0) {
             currentTimestampIndex--;
             updateTimestampDisplay();
             loadDataForCurrentTimestamp();
@@ -422,14 +498,14 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Next button
     document.getElementById('next-btn').addEventListener('click', function() {
-        if (currentTimestampIndex < currentTimestamps.length - 1) {
+        if (!isLiveMode && currentTimestampIndex < currentTimestamps.length - 1) {
             currentTimestampIndex++;
             updateTimestampDisplay();
             loadDataForCurrentTimestamp();
         }
     });
     
-    // Function to load data for current timestamp
+    // Function to load data for current timestamp (historical mode)
     function loadDataForCurrentTimestamp() {
         const patientRef = database.ref(`patients/patient_001/${currentDate}`);
         
@@ -438,8 +514,37 @@ document.addEventListener('DOMContentLoaded', function() {
             if (dateData && currentTimestamps[currentTimestampIndex]) {
                 const sensorData = dateData[currentTimestamps[currentTimestampIndex]];
                 const formattedData = formatPatientData(sensorData);
-                updateDashboard(formattedData);
-                updateChart(formattedData);
+                updateDashboard(formattedData, currentTimestamps[currentTimestampIndex]);
+                updateChart(formattedData, currentTimestamps[currentTimestampIndex]);
+            }
+        });
+    }
+    
+    // Live mode toggle button (we'll add this)
+    function setupLiveModeToggle() {
+        const liveToggle = document.createElement('button');
+        liveToggle.id = 'live-toggle';
+        liveToggle.innerHTML = '<i class="fas fa-satellite-dish"></i> LIVE MODE';
+        liveToggle.className = 'live-toggle-btn active';
+        
+        // Add to time selector
+        const timeSelector = document.querySelector('.time-selector');
+        timeSelector.appendChild(liveToggle);
+        
+        // Toggle live mode
+        liveToggle.addEventListener('click', function() {
+            if (isLiveMode) {
+                // Switch to historical mode
+                isLiveMode = false;
+                liveToggle.classList.remove('active');
+                liveToggle.innerHTML = '<i class="fas fa-history"></i> HISTORICAL';
+                loadHistoricalData();
+            } else {
+                // Switch to live mode
+                isLiveMode = true;
+                liveToggle.classList.add('active');
+                liveToggle.innerHTML = '<i class="fas fa-satellite-dish"></i> LIVE MODE';
+                startLiveUpdates();
             }
         });
     }
@@ -447,12 +552,55 @@ document.addEventListener('DOMContentLoaded', function() {
     // ========== INITIAL LOAD ==========
     console.log("=== Starting Patient Health Dashboard ===");
     
-    // Load initial data
-    loadPatientData();
+    // Update date selector with today's date
+    const today = getCurrentDate();
+    document.getElementById('date-select').value = today;
+    currentDate = today;
     
-    // Auto-refresh every 30 seconds
-    setInterval(() => {
-        console.log("Auto-refreshing data...");
-        loadPatientData();
-    }, 30000);
+    // Setup live mode toggle
+    setupLiveModeToggle();
+    
+    // Start in live mode
+    startLiveUpdates();
+    
+    // Update date options dynamically
+    updateDateOptions();
+    
+    // Function to update date options
+    function updateDateOptions() {
+        const dateSelect = document.getElementById('date-select');
+        
+        // Check what dates are available in Firebase
+        const patientsRef = database.ref('patients/patient_001');
+        patientsRef.once('value').then((snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const dates = Object.keys(data).sort().reverse(); // Latest first
+                
+                // Clear existing options except first
+                while (dateSelect.options.length > 1) {
+                    dateSelect.remove(1);
+                }
+                
+                // Add available dates
+                dates.forEach(date => {
+                    const option = document.createElement('option');
+                    option.value = date;
+                    option.textContent = formatDateDisplay(date);
+                    dateSelect.appendChild(option);
+                });
+            }
+        });
+    }
+    
+    // Format date for display
+    function formatDateDisplay(dateStr) {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    }
 });
