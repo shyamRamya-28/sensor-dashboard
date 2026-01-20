@@ -198,4 +198,39 @@ footer {
     .chart-section {
         margin: 20px;
     }
+
+}/* Improve dashboard layout */
+.dashboard {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr); /* 3 columns */
+    gap: 20px;
+    padding: 30px;
+}
+
+/* Make cards uniform height */
+.sensor-card {
+    height: 220px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+/* Make sensor values larger */
+.sensor-value {
+    font-size: 36px;
+    font-weight: 700;
+    margin: 10px 0;
+}
+
+/* Responsive for mobile */
+@media (max-width: 1024px) {
+    .dashboard {
+        grid-template-columns: repeat(2, 1fr); /* 2 columns on tablets */
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard {
+        grid-template-columns: 1fr; /* 1 column on mobile */
+    }
 }
