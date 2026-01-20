@@ -50,6 +50,27 @@
     <!-- Our scripts -->
     <script src="firebase.js"></script>
     <script src="script.js"></script>
+            <!-- Date/Time Selector -->
+        <div class="data-selector">
+            <h2><i class="fas fa-calendar-alt"></i> Select Date & Time</h2>
+            <div class="selector-controls">
+                <div class="date-selector">
+                    <label for="date-select">Date:</label>
+                    <select id="date-select">
+                        <option value="2026-01-19">January 19, 2026</option>
+                        <option value="2026-01-18">January 18, 2026</option>
+                        <option value="2026-01-17">January 17, 2026</option>
+                    </select>
+                </div>
+                <div class="time-selector">
+                    <label>Latest Reading:</label>
+                    <div id="current-timestamp">18:35:19</div>
+                    <button id="prev-btn"><i class="fas fa-chevron-left"></i> Previous</button>
+                    <button id="next-btn">Next <i class="fas fa-chevron-right"></i></button>
+                </div>
+            </div>
+        </div>
 </body>
 
 </html>
+
