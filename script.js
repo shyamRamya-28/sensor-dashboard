@@ -60,13 +60,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ========== PATIENT DATA FUNCTIONS ==========
     
-    // Helper function to determine status
+       // Helper function to determine status - TESTING VERSION
     function getStatus(sensorName, value) {
         const thresholds = {
-            temperature: { min: 35, max: 42, normal: 37 },
-            heart_rate: { min: 40, max: 180, normal: 72 },
+            temperature: { min: 20, max: 45, normal: 37 }, // Wider for testing
+            heart_rate: { min: 30, max: 200, normal: 72 },  // Wider for testing
             spo2: { min: 90, max: 100, normal: 98 },
-            air_quality: { normalValues: ["Good", "Fair"] },
+            air_quality: { normalValues: ["Good", "Fair", "Moderate"] },
             acceleration_x: { min: -20000, max: 20000, normal: 0 },
             acceleration_y: { min: -20000, max: 20000, normal: 0 },
             acceleration_z: { min: -20000, max: 20000, normal: 0 }
@@ -80,15 +80,12 @@ document.addEventListener('DOMContentLoaded', function() {
             return threshold.normalValues.includes(value) ? "normal" : "alert";
         }
         
-        // For numeric sensors
+        // For numeric sensors - show warning instead of alert for extreme values
         if (value < threshold.min || value > threshold.max) {
-            return "alert";
-        } else if (threshold.normal && Math.abs(value - threshold.normal) > (threshold.normal * 0.15)) {
-            return "warning";
+            return "warning"; // Changed from "alert" to "warning" for testing
         }
         return "normal";
     }
-
     // Helper function to get units
     function getUnit(sensorName) {
         const units = {
@@ -424,3 +421,4 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, 5000);
 });
+
