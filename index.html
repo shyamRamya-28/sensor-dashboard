@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sensor Data Dashboard</title>
+    <title>Patient Health Dashboard</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -11,7 +11,7 @@
 <body>
     <div class="container">
         <header>
-            <h1><i class="fas fa-chart-line"></i> Sensor Data Dashboard</h1>
+            <h1><i class="fas fa-heartbeat"></i> Patient Health Dashboard</h1>
             <div class="header-info">
                 <div class="status-indicator">
                     <span class="status-dot"></span>
@@ -21,14 +21,7 @@
             </div>
         </header>
 
-        <div class="dashboard">
-            <!-- Sensor Cards will be added here by JavaScript -->
-            <div class="loading">
-                <i class="fas fa-spinner fa-spin"></i>
-                <p>Loading sensor data...</p>
-            </div>
-        </div>
-                <!-- Summary Stats -->
+        <!-- Summary Stats -->
         <div class="summary-stats">
             <div class="stat-card">
                 <i class="fas fa-heartbeat"></i>
@@ -52,28 +45,7 @@
             </div>
         </div>
 
-        <div class="chart-section">
-            <h2><i class="fas fa-chart-bar"></i> Historical Data</h2>
-            <canvas id="sensorChart"></canvas>
-        </div>
-
-        <footer>
-            <p>Last Updated: <span id="last-updated">Never</span></p>
-            <p>Dashboard v1.0 • Real-time Monitoring</p>
-        </footer>
-    </div>
-
-         <!-- Firebase SDKs (Compatible Version) -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-    
-    <!-- Chart.js for graphs -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- Our scripts -->
-    <script src="firebase.js"></script>
-    <script src="script.js"></script>
-            <!-- Date/Time Selector -->
+        <!-- Date/Time Selector -->
         <div class="data-selector">
             <h2><i class="fas fa-calendar-alt"></i> Select Date & Time</h2>
             <div class="selector-controls">
@@ -87,14 +59,41 @@
                 </div>
                 <div class="time-selector">
                     <label>Latest Reading:</label>
-                    <div id="current-timestamp">18:35:19</div>
+                    <div id="current-timestamp">--:--:--</div>
                     <button id="prev-btn"><i class="fas fa-chevron-left"></i> Previous</button>
                     <button id="next-btn">Next <i class="fas fa-chevron-right"></i></button>
                 </div>
             </div>
         </div>
+
+        <div class="dashboard">
+            <!-- Sensor Cards will be added here by JavaScript -->
+            <div class="loading">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Loading patient data...</p>
+            </div>
+        </div>
+
+        <div class="chart-section">
+            <h2><i class="fas fa-chart-line"></i> Historical Data</h2>
+            <canvas id="sensorChart"></canvas>
+        </div>
+
+        <footer>
+            <p>Last Updated: <span id="last-updated">Never</span></p>
+            <p>Patient ID: <span id="patient-id">001</span> • Dashboard v1.0 • Real-time Monitoring</p>
+        </footer>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <!-- Chart.js for graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Our scripts -->
+    <script src="firebase.js"></script>
+    <script src="script.js"></script>
 </body>
-
 </html>
-
-
